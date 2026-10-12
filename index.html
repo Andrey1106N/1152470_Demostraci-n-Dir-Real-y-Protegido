@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
+  <title>SEGMENTA — Laboratorio de direccionamiento x86</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: #111a2e;
+      --panel-raised: #17223a;
+      --line: #25324b;
+      --muted: #96a5be;
+      --text: #edf3ff;
+      --cyan: #53e1d0;
+      --blue: #7ea7ff;
+      --gold: #ffc978;
+      --red: #ff7a8b;
+      --green: #70e2a5;
+      --radius: 16px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background:
+        radial-gradient(ellipse at 88% -10%, rgba(75, 112, 204, .20), transparent 32rem),
+        radial-gradient(ellipse at -10% 45%, rgba(36, 189, 175, .08), transparent 28rem),
+        var(--bg);
+    }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+    .shell { max-width: 1440px; margin: 0 auto; padding: 26px clamp(16px, 4vw, 54px) 54px; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin-bottom: 48px; }
+    .brand { display: flex; gap: 12px; align-items: center; text-decoration: none; color: inherit; }
+    .brand-mark { display: grid; place-items: center; width: 40px; height: 40px; border: 1px solid rgba(83,225,208,.5); border-radius: 12px; color: var(--cyan); background: rgba(83,225,208,.08); font: 800 19px ui-monospace, monospace; }
+    .brand-name { font-size: 14px; font-weight: 800; letter-spacing: .17em; }
+    .brand-caption { color: var(--muted); font-size: 11px; margin-top: 3px; }
+    .top-meta { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 12px; }
+    .live-dot { width: 7px; height: 7px; background: var(--green); border-radius: 50%; box-shadow: 0 0 12px rgba(112,226,165,.7); }
+    .hero { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: end; gap: 24px; margin-bottom: 27px; }
+    .eyebrow { color: var(--cyan); font: 700 11px ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .16em; text-transform: uppercase; }
+    h1 { margin: 11px 0 9px; font-size: clamp(30px, 5vw, 49px); line-height: 1.07; letter-spacing: -.045em; }
+    h1 span { color: var(--cyan); }
+    .hero p { max-width: 690px; margin: 0; color: var(--muted); line-height: 1.65; font-size: 14px; }
+    .hero-badge { border: 1px solid var(--line); padding: 11px 14px; border-radius: 12px; color: #c4d1e6; font: 11px ui-monospace, monospace; background: rgba(17,26,46,.7); white-space: nowrap; }
+    .tabbar { display: flex; gap: 5px; padding: 5px; margin: 31px 0 19px; border: 1px solid var(--line); border-radius: 14px; background: rgba(17,26,46,.72); width: fit-content; }
+    .tab { display: flex; align-items: center; gap: 9px; border: 0; background: transparent; color: var(--muted); padding: 10px 15px; border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 650; transition: .2s; }
+    .tab:hover { color: var(--text); }
+    .tab[aria-selected="true"] { background: var(--panel-raised); color: var(--text); box-shadow: inset 0 0 0 1px #2d3c59; }
+    .tab-key { color: var(--cyan); font: 11px ui-monospace, monospace; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(300px, .85fr); gap: 18px; align-items: start; }
+    .panel { border: 1px solid var(--line); border-radius: var(--radius); background: linear-gradient(145deg, rgba(20,31,52,.96), rgba(15,23,40,.97)); box-shadow: 0 18px 48px rgba(0,0,0,.16); overflow: hidden; }
+    .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 15px; padding: 21px 23px 16px; border-bottom: 1px solid rgba(37,50,75,.76); }
+    .panel-head h2 { margin: 0 0 5px; font-size: 17px; letter-spacing: -.02em; }
+    .panel-head p { margin: 0; font-size: 12px; color: var(--muted); line-height: 1.5; }
+    .step-label { color: var(--cyan); font: 11px ui-monospace, monospace; border: 1px solid rgba(83,225,208,.22); background: rgba(83,225,208,.06); border-radius: 8px; padding: 7px 9px; white-space: nowrap; }
+    .panel-body { padding: 21px 23px 23px; }
+    .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+    .field { min-width: 0; }
+    .field.full { grid-column: 1 / -1; }
+    label, .field-label { display: flex; justify-content: space-between; gap: 10px; margin-bottom: 8px; color: #dce6f8; font-size: 12px; font-weight: 650; }
+    .hint { color: #73839f; font-size: 10px; font-weight: 500; }
+    input, select {
+      width: 100%; min-height: 43px; padding: 0 12px; border: 1px solid #2c3a55; border-radius: 10px;
+      color: var(--text); background: #0d1526; outline: none; transition: border-color .18s, box-shadow .18s;
+    }
+    input:focus, select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(83,225,208,.11); }
+    input::placeholder { color: #52617b; }
+    .mono, input.mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .015em; }
+    .input-wrap { position: relative; }
+    .input-prefix { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #7586a2; font: 11px ui-monospace, monospace; pointer-events: none; }
+    .input-wrap input { padding-left: 39px; }
+    .helper { color: #8291aa; font-size: 10px; margin-top: 6px; line-height: 1.5; }
+    .actions { display: flex; align-items: center; gap: 9px; margin-top: 18px; }
+    .primary, .secondary, .preset {
+      border-radius: 10px; border: 1px solid transparent; min-height: 40px; padding: 0 14px; font-size: 12px; font-weight: 700; cursor: pointer; transition: .18s;
+    }
+    .primary { color: #08201f; background: var(--cyan); box-shadow: 0 5px 18px rgba(83,225,208,.12); }
+    .primary:hover { background: #77eee0; transform: translateY(-1px); }
+    .secondary, .preset { border-color: #2b3a54; background: #121d31; color: #c3cfe2; }
+    .secondary:hover, .preset:hover { border-color: #506786; color: white; }
+    .result {
+      margin-top: 20px; padding: 17px; border: 1px solid rgba(83,225,208,.3); border-radius: 13px;
+      background: linear-gradient(120deg, rgba(83,225,208,.08), rgba(83,225,208,.025));
+    }
+    .result.invalid { border-color: rgba(255,122,139,.4); background: rgba(255,122,139,.05); }
+    .result-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .result-kicker { color: var(--muted); font: 10px ui-monospace, monospace; text-transform: uppercase; letter-spacing: .1em; }
+    .status { color: var(--green); font-size: 10px; font-weight: 750; }
+    .invalid .status { color: var(--red); }
+    .address { margin: 9px 0 5px; color: var(--cyan); font: 700 clamp(22px,4vw,31px) ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: -.04em; overflow-wrap: anywhere; }
+    .invalid .address { color: var(--red); font-size: 16px; letter-spacing: 0; }
+    .result-detail { color: #aab8ce; font-size: 11px; line-height: 1.55; }
+    .formula { padding: 10px 12px; border-radius: 9px; background: rgba(5,11,22,.4); color: #c6d2e5; font: 11px ui-monospace, monospace; margin-top: 12px; }
+    .formula strong { color: var(--gold); font-weight: 650; }
+    .viz-panel { padding: 21px; }
+    .viz-title { display: flex; justify-content: space-between; align-items: center; margin-bottom: 17px; }
+    .viz-title h3 { margin: 0; font-size: 13px; }
+    .viz-title span { color: var(--muted); font: 10px ui-monospace, monospace; }
+    .memory-map { border: 1px solid #2b3953; border-radius: 12px; padding: 15px; background: rgba(8,14,26,.42); }
+    .map-addresses { display: flex; justify-content: space-between; color: #8291aa; font: 10px ui-monospace, monospace; margin-bottom: 8px; }
+    .bar-track { height: 29px; border-radius: 7px; border: 1px solid #2b3953; background: #0a1120; position: relative; overflow: hidden; }
+    .bar-segment { position: absolute; inset: 0 auto 0 0; width: 28%; background: linear-gradient(90deg, rgba(126,167,255,.2), rgba(126,167,255,.08)); border-right: 1px dashed var(--blue); transition: width .45s cubic-bezier(.2,.7,.2,1); }
+    .bar-offset { position: absolute; top: -4px; bottom: -4px; left: 13%; width: 2px; background: var(--gold); box-shadow: 0 0 10px rgba(255,201,120,.7); transition: left .45s; }
+    .bar-offset::after { content: ""; position: absolute; top: 0; left: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+    .map-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; color: #a6b4ca; font-size: 10px; }
+    .legend-item { display: flex; align-items: center; gap: 7px; }
+    .legend-swatch { width: 8px; height: 8px; border-radius: 2px; background: var(--blue); }
+    .legend-swatch.gold { background: var(--gold); }
+    .legend-swatch.cyan { background: var(--cyan); }
+    .steps { margin-top: 18px; }
+    .steps h3 { margin: 0 0 12px; font-size: 12px; }
+    .step { position: relative; display: flex; gap: 11px; padding-bottom: 13px; color: #91a1ba; font-size: 11px; line-height: 1.5; }
+    .step:last-child { padding-bottom: 0; }
+    .step-no { flex: 0 0 21px; height: 21px; display: grid; place-items: center; border-radius: 50%; color: var(--cyan); background: rgba(83,225,208,.09); font: 10px ui-monospace, monospace; }
+    .step b { color: #dce6f6; font-weight: 650; }
+    .note { margin-top: 17px; padding: 11px 12px; border-left: 2px solid var(--gold); border-radius: 0 8px 8px 0; color: #a6b3c8; background: rgba(255,201,120,.055); font-size: 10px; line-height: 1.55; }
+    .mode-view { display: none; }
+    .mode-view.active { display: block; animation: appear .26s ease-out; }
+    @keyframes appear { from { opacity: .35; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+    .protected-workspace { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(300px, .9fr); gap: 18px; align-items: start; }
+    .subsection { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+    .subsection-title { display: flex; align-items: center; gap: 8px; margin: 0 0 13px; font-size: 12px; }
+    .subsection-title .chip { color: var(--gold); font: 10px ui-monospace, monospace; }
+    .wide-result { grid-column: 1 / -1; }
+    .decode-card { padding: 19px 21px 21px; }
+    .decode-title { margin: 0 0 5px; font-size: 16px; }
+    .decode-description { color: var(--muted); font-size: 11px; line-height: 1.55; margin: 0 0 17px; }
+    .binary-input { min-height: 91px; resize: vertical; padding: 12px; line-height: 1.8; overflow-wrap: anywhere; font-size: 11px; }
+    .binary-input.invalid-input { border-color: var(--red); }
+    .bit-layout { margin-top: 18px; }
+    .bit-layout-head { display: flex; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 10px; margin-bottom: 8px; }
+    .bit-row { display: grid; grid-template-columns: 16fr 16fr 8fr 8fr 4fr 4fr 4fr 4fr; gap: 4px; }
+    .bit-field { min-width: 0; padding: 9px 7px; border: 1px solid #34425d; border-radius: 7px; text-align: center; background: #111d32; }
+    .bit-field:nth-child(1) { border-color: rgba(126,167,255,.4); background: rgba(126,167,255,.07); }
+    .bit-field:nth-child(2), .bit-field:nth-child(3) { border-color: rgba(83,225,208,.35); background: rgba(83,225,208,.055); }
+    .bit-field:nth-child(4) { border-color: rgba(255,201,120,.4); background: rgba(255,201,120,.06); }
+    .bit-field:nth-child(5), .bit-field:nth-child(6), .bit-field:nth-child(7), .bit-field:nth-child(8) { border-color: rgba(184,139,255,.32); background: rgba(184,139,255,.05); }
+    .bit-name { color: #a8b7ce; font-size: 9px; line-height: 1.25; min-height: 22px; }
+    .bit-value { color: var(--text); font: 10px ui-monospace, monospace; margin-top: 6px; overflow: hidden; }
+    .bit-range { color: #70809a; font: 8px ui-monospace, monospace; margin-top: 4px; }
+    .decode-details { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin-top: 13px; }
+    .detail { padding: 10px; border: 1px solid #25334d; border-radius: 9px; background: rgba(9,15,27,.32); }
+    .detail-label { color: #8291aa; font-size: 9px; }
+    .detail-value { color: #e1eaf8; font: 11px ui-monospace, monospace; margin-top: 5px; overflow-wrap: anywhere; }
+    .decode-message { color: var(--red); font-size: 11px; line-height: 1.5; margin-top: 10px; min-height: 16px; }
+    .preset-row { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
+    .preset { min-height: 30px; padding: 0 9px; font-size: 10px; }
+    .info-strip { display: grid; grid-template-columns: repeat(3,1fr); gap: 1px; margin-top: 19px; overflow: hidden; border: 1px solid var(--line); border-radius: 13px; background: var(--line); }
+    .info-item { padding: 14px 16px; background: rgba(17,26,46,.9); }
+    .info-item strong { display: block; color: #dce6f6; font-size: 11px; margin-bottom: 5px; }
+    .info-item span { color: #8d9cb4; font-size: 10px; line-height: 1.5; }
+    footer { display: flex; justify-content: space-between; gap: 20px; padding-top: 22px; color: #66758d; font-size: 10px; }
+    .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+    @media (max-width: 920px) {
+      .workspace, .protected-workspace { grid-template-columns: 1fr; }
+      .viz-panel { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+      .viz-title { grid-column: 1/-1; margin-bottom: 0; }
+      .steps { margin-top: 0; }
+    }
+    @media (max-width: 620px) {
+      .shell { padding-top: 17px; }
+      .topbar { margin-bottom: 35px; }
+      .top-meta, .hero-badge { display: none; }
+      .hero { grid-template-columns: 1fr; }
+      .tabbar { width: 100%; }
+      .tab { flex: 1; justify-content: center; padding: 10px 7px; font-size: 11px; }
+      .panel-head { padding: 18px 17px 14px; }
+      .panel-body { padding: 18px 17px; }
+      .viz-panel { display: block; padding: 17px; }
+      .viz-title { margin-bottom: 15px; }
+      .steps { margin-top: 18px; }
+      .field-grid { gap: 12px; }
+      .bit-row { gap: 2px; }
+      .bit-field { padding: 8px 2px; }
+      .bit-name { font-size: 8px; }
+      .bit-value { font-size: 8px; }
+      .info-strip { grid-template-columns: 1fr; }
+      footer { flex-direction: column; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="SEGMENTA, inicio">
+        <span class="brand-mark">S.</span>
+        <span><span class="brand-name">SEGMENTA</span><span class="brand-caption">LABORATORIO DE DIRECCIONAMIENTO x86</span></span>
+      </a>
+      <div class="top-meta"><span class="live-dot"></span> SIMULADOR INTERACTIVO <span aria-hidden="true">·</span> 16 / 32 BITS</div>
+    </header>
+    <section class="hero">
+      <div>
+        <div class="eyebrow">Arquitectura de computadores / módulo 02</div>
+        <h1>Una dirección.<br><span>Dos modos.</span></h1>
+        <p>Explora cómo el procesador traduce una dirección lógica en modo real y cómo un selector y su descriptor intervienen en modo protegido.</p>
+      </div>
+      <div class="hero-badge">x86 · SEGMENTACIÓN<br>APRENDE HACIENDO</div>
+    </section>
+
+    <nav class="tabbar" role="tablist" aria-label="Modo de direccionamiento">
+      <button class="tab" id="tab-real" role="tab" aria-selected="true" aria-controls="real-view"><span class="tab-key">01</span> Modo real</button>
+      <button class="tab" id="tab-protected" role="tab" aria-selected="false" aria-controls="protected-view"><span class="tab-key">02</span> Modo protegido</button>
+      <button class="tab" id="tab-reversing" role="tab" aria-selected="false" aria-controls="reversing-view"><span class="tab-key">03</span> Reversing</button>
+    </nav>
+
+    <section class="mode-view active" id="real-view" role="tabpanel" aria-labelledby="tab-real">
+      <div class="workspace">
+        <article class="panel">
+          <div class="panel-head">
+            <div><h2>Dirección en modo real</h2><p>Combina un segmento y un desplazamiento de 16 bits.</p></div>
+            <span class="step-label">CÁLCULO 01</span>
+          </div>
+          <div class="panel-body">
+            <div class="field-grid">
+              <div class="field">
+                <label for="real-segment">Segmento <span class="hint">hexadecimal, 16 bits</span></label>
+                <div class="input-wrap"><span class="input-prefix">0x</span><input id="real-segment" class="mono" value="1A2B" maxlength="4" inputmode="text" autocomplete="off" aria-describedby="real-segment-help"></div>
+                <div class="helper" id="real-segment-help">Rango: 0000–FFFF. El procesador lo desplaza 4 bits.</div>
+              </div>
+              <div class="field">
+                <label for="real-offset">Desplazamiento <span class="hint">hexadecimal, 16 bits</span></label>
+                <div class="input-wrap"><span class="input-prefix">0x</span><input id="real-offset" class="mono" value="0023" maxlength="4" inputmode="text" autocomplete="off" aria-describedby="real-offset-help"></div>
+                <div class="helper" id="real-offset-help">Rango: 0000–FFFF. Se suma a la base del segmento.</div>
+              </div>
+            </div>
+            <div class="actions"><button class="primary" id="calc-real">Calcular dirección <span aria-hidden="true">↗</span></button><button class="secondary" id="reset-real">Restablecer</button></div>
+            <div class="result" id="real-result" aria-live="polite">
+              <div class="result-top"><span class="result-kicker">Dirección física resultante</span><span class="status">● CALCULADA</span></div>
+              <div class="address" id="real-address">0001A2D3h</div>
+              <div class="result-detail" id="real-detail">Base 1A2B0h + desplazamiento 0023h</div>
+              <div class="formula">(<strong>segmento × 10h</strong>) + desplazamiento = dirección física</div>
+            </div>
+          </div>
+        </article>
+        <aside class="panel viz-panel">
+          <div class="viz-title"><h3>Del segmento a la memoria</h3><span>MAPA · 1 MiB</span></div>
+          <div>
+            <div class="memory-map" aria-label="Diagrama de segmento y desplazamiento">
+              <div class="map-addresses"><span>00000h</span><span>FFFFFh</span></div>
+              <div class="bar-track"><div class="bar-segment" id="real-segment-bar"></div><div class="bar-offset" id="real-offset-bar"></div></div>
+              <div class="map-legend"><span class="legend-item"><i class="legend-swatch"></i> Base del segmento</span><span class="legend-item"><i class="legend-swatch gold"></i> Dirección calculada</span></div>
+            </div>
+            <div class="note">La dirección se calcula como <b>segmento × 16 + desplazamiento</b>. Con la línea A20 habilitada puede llegar a 10FFEFh; si A20 está deshabilitada, las direcciones por encima de FFFFFh hacen wraparound.</div>
+          </div>
+          <div class="steps">
+            <h3>El cálculo, paso a paso</h3>
+            <div class="step"><span class="step-no">1</span><span>Desplaza el segmento cuatro bits a la izquierda: <b id="real-step-base">1A2B0h</b>.</span></div>
+            <div class="step"><span class="step-no">2</span><span>Suma el desplazamiento: <b id="real-step-sum">1A2B0h + 0023h</b>.</span></div>
+            <div class="step"><span class="step-no">3</span><span>Obtén la dirección calculada (hasta 10FFEFh con A20 habilitada): <b id="real-step-result">1A2D3h</b>.</span></div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="mode-view" id="protected-view" role="tabpanel" aria-labelledby="tab-protected">
+      <div class="protected-workspace">
+        <article class="panel">
+          <div class="panel-head"><div><h2>Traducción en modo protegido</h2><p>El selector localiza el segmento; el descriptor aporta su base y límite.</p></div><span class="step-label">CÁLCULO 02</span></div>
+          <div class="panel-body">
+            <div class="field-grid">
+              <div class="field full">
+                <label for="descriptor-hex">Descriptor de segmento <span class="hint">64 bits · hexadecimal</span></label>
+                <div class="input-wrap"><span class="input-prefix">0x</span><input id="descriptor-hex" class="mono" value="00CF9A000000FFFF" maxlength="16" autocomplete="off" spellcheck="false"></div>
+                <div class="helper">Formato x86: descriptor de 8 bytes escrito como un entero de 64 bits (MSB a la izquierda).</div>
+              </div>
+              <div class="field">
+                <label for="selector">Selector <span class="hint">16 bits · hexadecimal</span></label>
+                <div class="input-wrap"><span class="input-prefix">0x</span><input id="selector" class="mono" value="0008" maxlength="4" autocomplete="off" spellcheck="false"></div>
+                <div class="helper">Bits 15:3 índice · bit 2 tabla · bits 1:0 RPL.</div>
+              </div>
+              <div class="field">
+                <label for="segment-type">Registro de segmento</label>
+                <select id="segment-type"><option value="DS">DS — datos</option><option value="CS">CS — código</option><option value="SS">SS — pila</option></select>
+                <div class="helper">Se valida que el tipo del descriptor sea compatible.</div>
+              </div>
+              <div class="field full">
+                <label for="protected-offset">Desplazamiento (offset) <span class="hint">hexadecimal</span></label>
+                <div class="input-wrap"><span class="input-prefix">0x</span><input id="protected-offset" class="mono" value="00001234" maxlength="8" autocomplete="off" spellcheck="false"></div>
+                <div class="helper">Debe estar dentro del límite efectivo del descriptor.</div>
+              </div>
+            </div>
+            <div class="actions"><button class="primary" id="calc-protected">Traducir dirección <span aria-hidden="true">↗</span></button><button class="secondary" id="load-flat">Cargar ejemplo plano</button></div>
+            <div class="result" id="protected-result" aria-live="polite">
+              <div class="result-top"><span class="result-kicker">Dirección lineal (base + offset)</span><span class="status" id="protected-status">● VÁLIDA</span></div>
+              <div class="address" id="protected-address">00001234h</div>
+              <div class="result-detail" id="protected-detail">Base 00000000h + offset 00001234h · límite 000FFFFFh</div>
+              <div class="formula">dirección lineal = <strong>base del descriptor + offset</strong> · tras el límite, la CPU puede aplicar paginación</div>
+            </div>
+          </div>
+        </article>
+        <aside class="panel">
+          <div class="viz-panel" style="display:block">
+            <div class="viz-title"><h3>Selector → descriptor → dirección</h3><span>SEGMENTACIÓN</span></div>
+            <div class="memory-map">
+              <div class="map-legend" style="grid-template-columns:repeat(3,1fr);margin:0 0 12px">
+                <span class="legend-item"><i class="legend-swatch cyan"></i> Selector</span><span class="legend-item"><i class="legend-swatch"></i> Base</span><span class="legend-item"><i class="legend-swatch gold"></i> Offset</span>
+              </div>
+              <div class="bar-track"><div class="bar-segment" style="width:63%;border-color:var(--cyan)"></div><div class="bar-offset" id="protected-offset-marker" style="left:26%"></div></div>
+            </div>
+            <div class="steps">
+              <h3>Decodificación aplicada</h3>
+              <div class="step"><span class="step-no">1</span><span>Selector <b id="selector-breakdown">0008h → índice 1 · GDT · RPL 0</b>.</span></div>
+              <div class="step"><span class="step-no">2</span><span>Lee del descriptor la <b id="protected-base-step">base 00000000h</b> y su límite efectivo.</span></div>
+              <div class="step"><span class="step-no">3</span><span>Comprueba el límite y suma base + offset; el resultado es <b>lineal</b>, no necesariamente físico.</span></div>
+            </div>
+            <div class="note">Este laboratorio recibe el descriptor explícitamente: no consulta una GDT/LDT real ni simula CPL, paginación o excepciones de hardware.</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="mode-view" id="reversing-view" role="tabpanel" aria-labelledby="tab-reversing">
+      <article class="panel decode-card">
+        <div class="panel-head" style="padding:0 0 16px;margin-bottom:18px">
+          <div><h2 class="decode-title">Reversing de descriptor</h2><p class="decode-description">Pega los 64 bits de un descriptor x86 para identificar sus campos y atributos. Puedes escribir los bits seguidos o agrupados con espacios.</p></div>
+          <span class="step-label">ANÁLISIS 03</span>
+        </div>
+        <div class="field">
+          <label for="binary-descriptor">Descriptor binario <span class="hint">exactamente 64 bits · 0 y 1</span></label>
+          <textarea id="binary-descriptor" class="binary-input mono" spellcheck="false" aria-describedby="binary-help">0000000011001111100110100000000000000000000000001111111111111111</textarea>
+          <div class="helper" id="binary-help">Se permiten espacios para legibilidad. Se rechaza cualquier carácter que no sea 0 o 1 y cualquier longitud distinta de 64 bits.</div>
+          <div class="preset-row">
+            <button class="preset" data-binary="0000000011001111100110100000000000000000000000001111111111111111">Código plano (00CF9A...)</button>
+            <button class="preset" data-binary="0000000011001111100100100000000000000000000000001111111111111111">Datos plano (00CF92...)</button>
+            <button class="preset" data-binary="0000000011001111100110100000000000000000000000001111111111111111">Reiniciar ejemplo</button>
+          </div>
+        </div>
+        <div class="bit-layout" aria-label="Campos del descriptor de segmento">
+          <div class="bit-layout-head"><span>MAPA DE BITS · DESCRIPTOR x86 DE 8 BYTES</span><span>63 ← MSB · LSB → 0</span></div>
+          <div class="bit-row">
+            <div class="bit-field"><div class="bit-name">Base 31:24</div><div class="bit-value" id="bits-base-high">00000000</div><div class="bit-range">63–56</div></div>
+            <div class="bit-field"><div class="bit-name">Flags + límite 19:16</div><div class="bit-value" id="bits-flags">11001111</div><div class="bit-range">55–48</div></div>
+            <div class="bit-field"><div class="bit-name">Acceso</div><div class="bit-value" id="bits-access">10011010</div><div class="bit-range">47–40</div></div>
+            <div class="bit-field"><div class="bit-name">Base 23:16</div><div class="bit-value" id="bits-base-mid">00000000</div><div class="bit-range">39–32</div></div>
+            <div class="bit-field"><div class="bit-name">Base 15:8</div><div class="bit-value" id="bits-base-low-high">00000000</div><div class="bit-range">31–24</div></div>
+            <div class="bit-field"><div class="bit-name">Base 7:0</div><div class="bit-value" id="bits-base-low-low">00000000</div><div class="bit-range">23–16</div></div>
+            <div class="bit-field"><div class="bit-name">Límite 15:8</div><div class="bit-value" id="bits-limit-high">11111111</div><div class="bit-range">15–8</div></div>
+            <div class="bit-field"><div class="bit-name">Límite 7:0</div><div class="bit-value" id="bits-limit-low">11111111</div><div class="bit-range">7–0</div></div>
+          </div>
+        </div>
+        <div class="decode-details" id="decode-details" aria-live="polite">
+          <div class="detail"><div class="detail-label">BASE LINEAL</div><div class="detail-value" id="decoded-base">00000000h</div></div>
+          <div class="detail"><div class="detail-label">LÍMITE EFECTIVO</div><div class="detail-value" id="decoded-limit">000FFFFFh (4 KiB-granular)</div></div>
+          <div class="detail"><div class="detail-label">PRESENCIA / PRIVILEGIO</div><div class="detail-value" id="decoded-presence">Presente · DPL 0</div></div>
+          <div class="detail"><div class="detail-label">CLASE / TIPO</div><div class="detail-value" id="decoded-type">Código · ejecutable · legible · no conforme</div></div>
+          <div class="detail"><div class="detail-label">ATRIBUTOS</div><div class="detail-value" id="decoded-attributes">G=1 · D/B=1 · L=0 · AVL=0</div></div>
+          <div class="detail"><div class="detail-label">LÍMITE RAW</div><div class="detail-value" id="decoded-raw-limit">0FFFFh</div></div>
+        </div>
+        <div class="decode-message" id="decode-message" aria-live="polite"></div>
+      </article>
+      <div class="info-strip">
+        <div class="info-item"><strong>Campo de acceso (bits 47:40)</strong><span>P, DPL y S definen presencia, nivel de privilegio y clase. Los 4 bits TYPE varían si es código/datos o sistema.</span></div>
+        <div class="info-item"><strong>Granularidad (G)</strong><span>G=0: límite en bytes. G=1: límite en páginas de 4 KiB; los 12 bits bajos quedan a 1.</span></div>
+        <div class="info-item"><strong>Modo 64 bits</strong><span>En código, L=1 indica segmento de código de 64 bits. L y D/B no deben estar activos a la vez.</span></div>
+      </div>
+    </section>
+    <footer><span>SEGMENTA · Laboratorio educativo de segmentación x86</span><span>Los ejemplos son didácticos; no ejecutan instrucciones privilegiadas.</span></footer>
+  </main>
+  <script>
+    "use strict";
+    const byId = (id) => document.getElementById(id);
+    const parseHex = (value, maxDigits, label) => {
+      const clean = value.trim().replace(/^0x/i, "").replace(/h$/i, "");
+      if (!clean || clean.length > maxDigits || !/^[\da-f]+$/i.test(clean)) {
+        throw new Error(`${label}: ingresa entre 1 y ${maxDigits} dígitos hexadecimales.`);
+      }
+      return BigInt(`0x${clean}`);
+    };
+    const hex = (value, minDigits = 1) => value.toString(16).toUpperCase().padStart(minDigits, "0");
+    const getDescriptor = (value) => {
+      const word = parseHex(value, 16, "Descriptor");
+      if (word > 0xFFFFFFFFFFFFFFFFn) throw new Error("El descriptor excede 64 bits.");
+      const rawLimit = (word & 0xFFFFn) | (((word >> 48n) & 0xFn) << 16n);
+      const base = ((word >> 16n) & 0xFFFFn) | (((word >> 32n) & 0xFFn) << 16n) | (((word >> 56n) & 0xFFn) << 24n);
+      const access = Number((word >> 40n) & 0xFFn);
+      const flags = Number((word >> 52n) & 0xFn);
+      const type = access & 0xF;
+      const system = (access & 0x10) === 0;
+      const granularity = (flags & 8) !== 0;
+      return {
+        word, rawLimit, limit: granularity ? (rawLimit << 12n) | 0xFFFn : rawLimit, base, access, flags, type,
+        present: (access & 0x80) !== 0, dpl: (access >> 5) & 3, system, granularity,
+        defaultSize: (flags & 4) !== 0, longMode: (flags & 2) !== 0, available: (flags & 1) !== 0
+      };
+    };
+    function showResult(container, status, address, detail, valid) {
+      container.classList.toggle("invalid", !valid);
+      status.textContent = valid ? "● VÁLIDA" : "● REVISAR";
+      address.textContent = valid ? address.dataset.value : address.dataset.error;
+      detail.textContent = detail.dataset.value || detail.dataset.error || "";
+    }
+    function calculateReal() {
+      const result = byId("real-result"), status = result.querySelector(".status");
+      const address = byId("real-address"), detail = byId("real-detail");
+      try {
+        const segment = parseHex(byId("real-segment").value, 4, "Segmento");
+        const offset = parseHex(byId("real-offset").value, 4, "Desplazamiento");
+        const base = segment << 4n, physical = base + offset;
+        address.dataset.value = `${hex(physical, 5)}h`;
+        detail.dataset.value = `Base ${hex(base, 5)}h + desplazamiento ${hex(offset, 4)}h`;
+        showResult(result, status, address, detail, true);
+        byId("real-step-base").textContent = `${hex(base, 5)}h`;
+        byId("real-step-sum").textContent = `${hex(base, 5)}h + ${hex(offset, 4)}h`;
+        byId("real-step-result").textContent = `${hex(physical, 5)}h`;
+        const relative = Number(physical) / 0x10FFEF;
+        byId("real-offset-bar").style.left = `${Math.max(2, Math.min(98, relative * 100))}%`;
+        byId("real-segment-bar").style.width = `${Math.max(3, Math.min(96, Number(base) / 0x10FFEF * 100))}%`;
+      } catch (error) {
+        address.dataset.error = error.message;
+        detail.dataset.error = "Corrige los campos para calcular la dirección.";
+        showResult(result, status, address, detail, false);
+      }
+    }
+    const isCode = (descriptor) => !descriptor.system && (descriptor.type & 8) !== 0;
+    const isReadableCode = (descriptor) => isCode(descriptor) && (descriptor.type & 2) !== 0;
+    const isWritableData = (descriptor) => !descriptor.system && (descriptor.type & 8) === 0 && (descriptor.type & 2) !== 0;
+    const isExpandDownData = (descriptor) => !descriptor.system && (descriptor.type & 8) === 0 && (descriptor.type & 4) !== 0;
+    function calculateProtected() {
+      const result = byId("protected-result"), status = byId("protected-status");
+      const address = byId("protected-address"), detail = byId("protected-detail");
+      try {
+        const descriptor = getDescriptor(byId("descriptor-hex").value);
+        const selector = parseHex(byId("selector").value, 4, "Selector");
+        const offset = parseHex(byId("protected-offset").value, 8, "Offset");
+        const segmentType = byId("segment-type").value;
+        const reasons = [];
+        if (selector === 0n) reasons.push("El selector nulo no identifica un descriptor válido.");
+        if (!descriptor.present) reasons.push("El descriptor no está presente (P=0).");
+        if (isExpandDownData(descriptor)) {
+          const maxOffset = descriptor.defaultSize ? 0xFFFFFFFFn : 0xFFFFn;
+          if (offset <= descriptor.limit || offset > maxOffset) {
+            reasons.push(`Offset inválido para segmento expand-down: debe ser mayor que ${hex(descriptor.limit)}h y no exceder ${hex(maxOffset)}h.`);
+          }
+        } else if (offset > descriptor.limit) {
+          reasons.push(`Offset ${hex(offset)}h fuera del límite ${hex(descriptor.limit)}h.`);
+        }
+        if (segmentType === "CS" && !isCode(descriptor)) reasons.push("CS requiere un descriptor de código.");
+        if (segmentType === "SS" && !isWritableData(descriptor)) reasons.push("SS requiere un descriptor de datos escribible.");
+        if (segmentType === "DS" && descriptor.system) reasons.push("DS no admite un descriptor de sistema.");
+        if (segmentType === "DS" && isCode(descriptor) && !isReadableCode(descriptor)) reasons.push("Este descriptor de código no es legible para DS.");
+        const table = (selector & 4n) === 0n ? "GDT" : "LDT";
+        byId("selector-breakdown").textContent = `${hex(selector, 4)}h → índice ${hex(selector >> 3n)} · ${table} · RPL ${Number(selector & 3n)}`;
+        byId("protected-base-step").textContent = `base ${hex(descriptor.base, 8)}h`;
+        if (reasons.length) {
+          address.dataset.error = reasons.join(" ");
+          detail.dataset.error = `Selector ${hex(selector,4)}h · límite efectivo ${hex(descriptor.limit,8)}h`;
+          showResult(result, status, address, detail, false);
+          return;
+        }
+        const linear = descriptor.base + offset;
+        address.dataset.value = `${hex(linear, 8)}h`;
+        detail.dataset.value = `Base ${hex(descriptor.base, 8)}h + offset ${hex(offset, 8)}h · límite ${hex(descriptor.limit, 8)}h`;
+        showResult(result, status, address, detail, true);
+      } catch (error) {
+        address.dataset.error = error.message;
+        detail.dataset.error = "Revisa descriptor, selector y offset.";
+        showResult(result, status, address, detail, false);
+      }
+    }
+    const typeDescription = (descriptor) => {
+      const { type, system } = descriptor;
+      if (system) {
+        const systemTypes = { 1: "TSS de 16 bits disponible", 2: "LDT", 3: "TSS de 16 bits ocupado", 4: "Call gate de 16 bits", 5: "Task gate", 6: "Interrupt gate de 16 bits", 7: "Trap gate de 16 bits", 9: "TSS de 32/64 bits disponible", 11: "TSS de 32/64 bits ocupado", 12: "Call gate de 32/64 bits", 14: "Interrupt gate de 32 bits", 15: "Trap gate de 32 bits" };
+        return systemTypes[type] || `Reservado (tipo ${type.toString(16).toUpperCase()})`;
+      }
+      if ((type & 8) !== 0) return `Código · ${type & 2 ? "legible" : "no legible"} · ${type & 4 ? "conforme" : "no conforme"} · ${type & 1 ? "accedido" : "no accedido"}`;
+      return `Datos · ${type & 2 ? "escribible" : "solo lectura"} · ${type & 4 ? "expand-down" : "expand-up"} · ${type & 1 ? "accedido" : "no accedido"}`;
+    };
+    function decodeBinary() {
+      const input = byId("binary-descriptor"), message = byId("decode-message");
+      const bits = input.value.replace(/\s/g, "");
+      input.classList.remove("invalid-input");
+      message.textContent = "";
+      if (!/^[01]*$/.test(bits) || bits.length !== 64) {
+        input.classList.add("invalid-input");
+        message.textContent = !/^[01]*$/.test(bits)
+          ? "Entrada inválida: usa únicamente 0 y 1 (se permiten espacios)."
+          : `Longitud inválida: ingresaste ${bits.length} bits; se requieren exactamente 64.`;
+        return;
+      }
+      const binaryWord = BigInt(`0b${bits}`);
+      const descriptor = getDescriptor(binaryWord.toString(16).padStart(16, "0"));
+      const groups = [bits.slice(0,8), bits.slice(8,16), bits.slice(16,24), bits.slice(24,32), bits.slice(32,40), bits.slice(40,48), bits.slice(48,56), bits.slice(56,64)];
+      ["bits-base-high","bits-flags","bits-access","bits-base-mid","bits-base-low-high","bits-base-low-low","bits-limit-high","bits-limit-low"].forEach((id,index) => byId(id).textContent = groups[index]);
+      byId("decoded-base").textContent = `${hex(descriptor.base,8)}h`;
+      byId("decoded-limit").textContent = `${hex(descriptor.limit,5)}h${descriptor.granularity ? " (4 KiB-granular)" : " (bytes)"}`;
+      byId("decoded-presence").textContent = `${descriptor.present ? "Presente" : "No presente"} · DPL ${descriptor.dpl}`;
+      byId("decoded-type").textContent = `${descriptor.system ? "Sistema" : "Código/datos"} · ${typeDescription(descriptor)}`;
+      byId("decoded-attributes").textContent = `G=${+descriptor.granularity} · D/B=${+descriptor.defaultSize} · L=${+descriptor.longMode} · AVL=${+descriptor.available} · ${descriptor.access & 1 ? "A=1" : "A=0"}`;
+      byId("decoded-raw-limit").textContent = `${hex(descriptor.rawLimit,5)}h`;
+      if (descriptor.longMode && descriptor.defaultSize && !descriptor.system && isCode(descriptor)) {
+        message.textContent = "Advertencia: descriptor de código con L=1 y D/B=1; esta combinación no es válida en x86.";
+      }
+    }
+    document.querySelectorAll('[role="tab"]').forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll('[role="tab"]').forEach((item) => item.setAttribute("aria-selected", String(item === tab)));
+        document.querySelectorAll(".mode-view").forEach((view) => view.classList.toggle("active", view.id === tab.getAttribute("aria-controls")));
+      });
+    });
+    byId("calc-real").addEventListener("click", calculateReal);
+    byId("reset-real").addEventListener("click", () => { byId("real-segment").value = "1A2B"; byId("real-offset").value = "0023"; calculateReal(); });
+    ["real-segment","real-offset"].forEach((id) => byId(id).addEventListener("input", calculateReal));
+    byId("calc-protected").addEventListener("click", calculateProtected);
+    ["descriptor-hex","selector","segment-type","protected-offset"].forEach((id) => byId(id).addEventListener("input", calculateProtected));
+    byId("load-flat").addEventListener("click", () => {
+      byId("descriptor-hex").value = "00CF9A000000FFFF";
+      byId("selector").value = "0008";
+      byId("segment-type").value = "CS";
+      byId("protected-offset").value = "00001234";
+      calculateProtected();
+    });
+    byId("binary-descriptor").addEventListener("input", decodeBinary);
+    document.querySelectorAll("[data-binary]").forEach((button) => button.addEventListener("click", () => {
+      byId("binary-descriptor").value = button.dataset.binary;
+      decodeBinary();
+    }));
+    document.querySelectorAll("input").forEach((input) => input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        if (input.id.startsWith("real-")) calculateReal();
+        else calculateProtected();
+      }
+    }));
+    calculateReal();
+    calculateProtected();
+    decodeBinary();
+  </script>
+</body>
+</html>
